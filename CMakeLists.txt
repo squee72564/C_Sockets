@@ -9,4 +9,4 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(showip_test tests/showip.cpp)
 
 add_executable(echo_server_test tests/echo_server.cpp)
-add_executable(client_test tests/client.cpp)
+add_executable(echo_client_test tests/echo_client.cpp)

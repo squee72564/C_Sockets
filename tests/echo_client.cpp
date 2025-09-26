@@ -41,9 +41,13 @@ int main() {
 
 
     std::string message{};
-    std::getline(std::cin, message);
-    while (message != "exit") {
+    char buff[512] = {0};
+    while (true) {
+        std::cout << "> ";
+        std::getline(std::cin, message);
+        if (message == "exit") break;
         message.push_back('\n');
+
         const char *message_cstr = message.c_str();
         size_t message_size = message.size();
         size_t sent_bytes_total = 0UL;
@@ -63,7 +67,23 @@ int main() {
             sent_bytes_total += bytes_sent;
         }
 
-        std::getline(std::cin, message);
+        std::cout << "--";
+        memset(buff, 0, sizeof(char) * 512);
+        ssize_t total_recv = 0;
+        while (total_recv < sent_bytes_total) {
+            ssize_t recieved = recv(client_fd, buff, 512, 0);
+
+            if (recieved == -1) {
+                std::cerr << "Client failed to recieve part of the echo'd message\n";
+                break;
+            }
+
+            std::cout.write(buff, recieved);
+
+            total_recv += recieved;
+        }
+
+        std::cout << std::endl;
     }
 
     return 0;
