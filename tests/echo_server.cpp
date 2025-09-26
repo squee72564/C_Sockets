@@ -8,41 +8,42 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <unistd.h>
+
+#include "helpers.hpp"
 
 int main() {
     int status = 0;
 
-    struct addrinfo hints, *res;
+    struct addrinfo hints, *servinfo;
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if ((status = getaddrinfo(nullptr, "3007", &hints, &res)) != 0) {
+    if ((status = getaddrinfo(nullptr, "3007", &hints, &servinfo)) != 0) {
         std::cerr << "getaddrinfo failed for server!\n";
         exit(EXIT_FAILURE);
     }
 
-    int socket_fd = socket(
-        res->ai_family,
-        res->ai_socktype,
-        res->ai_protocol
-    );
+    int socket_fd = -1;
 
-    if (socket_fd == -1) {
-        std::cerr << "Failed to get file descriptor for server socket!\n";
+    struct addrinfo* result = networking::bind_to_first_res(servinfo, socket_fd);
+
+    if (!result) {
+        std::cerr << "Failed to get file descriptor and bind for server socket!\n";
         exit(EXIT_FAILURE);
     }
 
-    if ((status = bind(socket_fd, res->ai_addr, res->ai_addrlen)) != 0) {
-        std::cerr << "bind failed for server socket!\n";
-        exit(EXIT_FAILURE);
-    }
-    
     int yes = 1;
-    if ((status = setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes)) != 0) {
-        std::cerr << "setsockopt failed for server socket!\n";
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
+        std::cerr << "could not set sock opt\n";
+        exit(EXIT_FAILURE);
+    }
+
+    if (bind(socket_fd, result->ai_addr, result->ai_addrlen) == -1) {
+        std::cerr << "could not bind socket\n";
         exit(EXIT_FAILURE);
     }
 
@@ -51,14 +52,8 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    char server_address_buff[INET6_ADDRSTRLEN];
-    void *addr =
-        (res->ai_family == AF_INET) ?
-        (void*)&((struct sockaddr_in*)res->ai_addr)->sin_addr :
-        (void*)&((struct sockaddr_in6*)res->ai_addr)->sin6_addr;
-
-    inet_ntop(res->ai_family, addr, server_address_buff, sizeof server_address_buff);
-    std::cout << "Server listening on " << server_address_buff << "\n";
+    networking::print_ai_result(result);
+    freeaddrinfo(servinfo);
 
     while (true) {
         sockaddr_storage client_sa = {0};
@@ -105,6 +100,7 @@ int main() {
             }
 
             std::cout << "Client (" << client_fd << ") disconnecting\n";
+            close(client_fd);
         };
 
         std::thread(handle_client_connection).detach();
